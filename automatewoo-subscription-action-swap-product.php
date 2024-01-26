@@ -1,7 +1,7 @@
 <?php
 /*
  * Plugin Name: AutomateWoo Subscription Action - Swap Product
- * Plugin URI:  https://github.com/a8cteam51/automatewoo-order-action-add-free-product
+ * Plugin URI:  https://github.com/a8cteam51/automatewoo-subscription-action-swap-product
  * Description: Extends the functionality of AutomateWoo with a custom action which allows you to add a product to an order as a line item.
  * Version:     1.0.0
  * Author:      WP Special Projects
