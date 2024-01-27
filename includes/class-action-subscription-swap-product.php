@@ -98,9 +98,46 @@ class Action_Subscription_Swap_Product extends Action {
 			$item_product = $line_item->get_product();
 
 			if ( $item_product && $item_product->get_id() === $swap_out_product->get_id() ) {
-				$quantity = $line_item->get_quantity();
+				$quantity               = $line_item->get_quantity();
+				$line_item_total        = $line_item->get_total();
+				$line_item_subtotal     = $line_item->get_subtotal();
+				$line_item_total_tax    = $line_item->get_total_tax();
+				$line_item_subtotal_tax = $line_item->get_subtotal_tax();
+
+				// Remove the "swap out" product line item using the line item id
 				$subscription->remove_item( $line_item_id );
-				$subscription->add_product( $swap_in_product, $quantity );
+
+				// Add the "swap in" product to the subscription retaining the pricing of the original "swap out" product
+				$new_item_id = $subscription->add_product(
+					$swap_in_product,
+					$quantity,
+					array(
+						'totals' => array(
+							'subtotal'     => $line_item_subtotal,
+							'total'        => $line_item_total,
+							'subtotal_tax' => $line_item_subtotal_tax,
+							'total_tax'    => $line_item_total_tax,
+						),
+					)
+				);
+				// Get the new line item
+				$new_line_item = $subscription->get_item( $new_item_id );
+
+				// Copy tax data
+				$new_line_item->set_taxes(
+					array(
+						'total'    => $line_item->get_taxes()['total'],
+						'subtotal' => $line_item->get_taxes()['subtotal'],
+					)
+				);
+
+				// Copy meta data (this includes coupon data, etc.)
+				foreach ( $line_item->get_meta_data() as $meta_data ) {
+					$new_line_item->add_meta_data( $meta_data->key, $meta_data->value );
+				}
+
+				// Save the item changes and the subscription
+				$new_line_item->save();
 				$subscription->calculate_totals();
 				$subscription->save();
 
