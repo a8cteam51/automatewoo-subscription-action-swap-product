@@ -96,11 +96,12 @@ class Action_Subscription_Swap_Product extends Action {
 
 		$did_update = false;
 
-		foreach ( $subscription->get_items() as $item_id => $item ) {
+		foreach ( $subscription->get_items( array( 'line_item', 'shipping' ) ) as $item_id => $item ) {
 
 			if ( 'shipping' === $item->get_type() ) {
 				// Clear the "Items" meta for the shipping line item, since that can sometimes include info from previous product.
-				wc_delete_order_item_meta( $item_id, 'Items' );
+				wc_delete_order_item_meta( $item_id, 'Items', '', true );
+				$item->save();
 				continue;
 			}
 
