@@ -94,57 +94,43 @@ class Action_Subscription_Swap_Product extends Action {
 			return; // Bail early if product lookups fail.
 		}
 
-		foreach ( $subscription->get_items() as $line_item_id => $line_item ) {
-			$item_product = $line_item->get_product();
+		$did_update = false;
 
-			if ( $item_product && $item_product->get_id() === $swap_out_product->get_id() ) {
-				$quantity               = $line_item->get_quantity();
-				$line_item_total        = $line_item->get_total();
-				$line_item_subtotal     = $line_item->get_subtotal();
-				$line_item_total_tax    = $line_item->get_total_tax();
-				$line_item_subtotal_tax = $line_item->get_subtotal_tax();
+		foreach ( $subscription->get_items() as $item_id => $item ) {
 
-				// Remove the "swap out" product line item using the line item id
-				$subscription->remove_item( $line_item_id );
+			if ( 'shipping' === $item->get_type() ) {
+				// Clear the "Items" meta for the shipping line item, since that can sometimes include info from previous product.
+				wc_delete_order_item_meta( $item_id, 'Items' );
+				continue;
+			}
 
-				// Add the "swap in" product to the subscription retaining the pricing of the original "swap out" product
-				$new_item_id = $subscription->add_product(
-					$swap_in_product,
-					$quantity,
-					array(
-						'totals' => array(
-							'subtotal'     => $line_item_subtotal,
-							'total'        => $line_item_total,
-							'subtotal_tax' => $line_item_subtotal_tax,
-							'total_tax'    => $line_item_total_tax,
-						),
-					)
-				);
-				// Get the new line item
-				$new_line_item = $subscription->get_item( $new_item_id );
+			// Check if the item matches the product to swap out (it could be a simple product or a variation).
+			if ( $item->get_product_id() === $swap_out_product->get_id() || $item->get_variation_id() === $swap_out_product->get_id() ) {
 
-				// Copy tax data
-				$new_line_item->set_taxes(
-					array(
-						'total'    => $line_item->get_taxes()['total'],
-						'subtotal' => $line_item->get_taxes()['subtotal'],
-					)
-				);
+				$did_update = true;
 
-				// Copy meta data (this includes coupon data, etc.)
-				foreach ( $line_item->get_meta_data() as $meta_data ) {
-					$new_line_item->add_meta_data( $meta_data->key, $meta_data->value );
-				}
+				// Determine if $swap_in_product is a variation or a simple product.
+				$swap_in_is_variation = $swap_in_product instanceof WC_Product_Variation;
 
-				// Save the item changes and the subscription
-				$new_line_item->save();
-				$subscription->calculate_totals();
-				$subscription->save();
+				// Get the main product ID and the variation ID.
+				$main_product_id = $swap_in_is_variation ? $swap_in_product->get_parent_id() : $swap_in_product->get_id();
+				$variation_id    = $swap_in_is_variation ? $swap_in_product->get_id() : 0;
 
-				// Add a note to the subscription indicating the swap
-				$this->add_subscription_note( $subscription, $swap_out_product, $swap_in_product );
+				// Update the order item with the new product information.
+				wc_update_order_item_meta( $item_id, '_product_id', $main_product_id );
+				wc_update_order_item_meta( $item_id, '_variation_id', $variation_id );
+
+				// Update the order item name with the name of the new product or variation.
+				$item->set_name( $swap_in_product->get_name() );
+				$item->save();
+
 			}
 		}
+
+		if ( $did_update ) {
+			$this->add_subscription_note( $subscription, $swap_out_product, $swap_in_product );
+		}
+
 	}
 
 	/**
