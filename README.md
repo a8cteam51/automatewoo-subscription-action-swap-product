@@ -1,3 +1,6 @@
+| :exclamation:  This is a public repository |
+|--------------------------------------------|
+
 # AutomateWoo Subscription Action Swap Product
 
 Extends the functionality of AutomateWoo with a custom action to swap products on subscriptions. 
@@ -13,4 +16,7 @@ This action is intended to be used on manual workflows to swap out products on s
 
 ## Support
 
-This plugin is provided without any support or guarantees of functionality. If you'd like to contribute, feel free to open a PR on this repo. Please test thoroughly before deploying to a production site.
+This plugin is provided without any support or guarantees of functionality. If you'd like to contribute, feel free to open a PR on this repo. If you have a request, please open an issue.
+
+> [!WARNING]  
+> Please test thoroughly before deploying to a production site.
