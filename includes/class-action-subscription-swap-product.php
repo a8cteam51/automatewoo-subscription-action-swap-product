@@ -32,6 +32,12 @@ class Action_Subscription_Swap_Product extends Action {
 	public function load_fields() {
 		$this->add_field( $this->get_swap_out_product_select_field() );
 		$this->add_field( $this->get_swap_in_product_select_field() );
+
+		$recalculate = new Fields\Checkbox();
+		$recalculate->set_name( 'recalculate_totals' );
+		$recalculate->set_title( __( 'Recalculate Totals?', 'automatewoo' ) );
+		$recalculate->set_description( __( 'Update subscription totals to reflect the new product prices', 'automatewoo' ) );
+		$this->add_field( $recalculate );
 	}
 
 	/**
@@ -70,7 +76,7 @@ class Action_Subscription_Swap_Product extends Action {
 	protected function load_admin_details() {
 		$this->title       = __( 'Swap Product', 'automatewoo' );
 		$this->group       = __( 'Subscription', 'automatewoo' );
-		$this->description = __( 'Swap one product for another on existing subscription line items. This will not change price or quantity of line item, or any other characteristics of the subscription.', 'automatewoo' );
+		$this->description = __( 'Swap one product for another on existing subscription line items. This will not change quantity of line item, or any other characteristics of the subscription. Prices will only be recalculated if the "Recalculate Totals?" checkbox is checked.', 'automatewoo' );
 	}
 
 	/**
@@ -123,6 +129,13 @@ class Action_Subscription_Swap_Product extends Action {
 
 				// Update the order item name with the name of the new product or variation.
 				$item->set_name( $swap_in_product->get_name() );
+
+				// Add price update if recalculate is checked
+				if ( $this->get_option( 'recalculate_totals' ) ) {
+					$item->set_subtotal( $swap_in_product->get_price() * $item->get_quantity() );
+					$item->set_total( $swap_in_product->get_price() * $item->get_quantity() );
+				}
+
 				$item->save();
 
 			}
@@ -130,6 +143,12 @@ class Action_Subscription_Swap_Product extends Action {
 
 		if ( $did_update ) {
 			$this->add_subscription_note( $subscription, $swap_out_product, $swap_in_product );
+
+			// Recalculate and save totals if option is checked
+			if ( $this->get_option( 'recalculate_totals' ) ) {
+				$subscription->calculate_totals();
+				$subscription->save();
+			}
 		}
 
 	}
