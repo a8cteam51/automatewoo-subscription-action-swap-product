@@ -16,6 +16,10 @@ Check the "Recalculate Totals?" checkbox if you want the subscription price to r
 - There is currently no advanced math or formulae available for this action, it just does a 1:1 swap.
 - This will not change the quantity of line item, or any other characteristics of the subscription. It simply swaps out the product. Prices will only be recalculated if the "Recalculate Totals?" checkbox is checked.
 
+## Screenshot
+<img width="979" alt="Screenshot 2025-01-07 at 14 00 46" src="https://github.com/user-attachments/assets/1efd4a46-4e05-41b9-8d0a-26d78538a0bf" />
+
+
 ## Support
 
 This plugin is provided without any support or guarantees of functionality. If you'd like to contribute, feel free to open a PR on this repo. If you have a request, please open an issue.
