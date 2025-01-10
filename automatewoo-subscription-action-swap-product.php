@@ -3,7 +3,7 @@
  * Plugin Name: AutomateWoo Subscription Action - Swap Product
  * Plugin URI:  https://github.com/a8cteam51/automatewoo-subscription-action-swap-product
  * Description: Extends the functionality of AutomateWoo with a custom action which allows you to swap out products in a subscription.
- * Version:     1.2.0
+ * Version:     1.2.1
  * Author:      WP Special Projects
  * Author URI:  https://wpspecialprojects.wordpress.com/
  * License:     GPL v2 or later
