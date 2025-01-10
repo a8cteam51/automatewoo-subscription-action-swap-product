@@ -116,27 +116,30 @@ class Action_Subscription_Swap_Product extends Action {
 
 				$did_update = true;
 
-				// Determine if $swap_in_product is a variation or a simple product.
-				$swap_in_is_variation = $swap_in_product instanceof WC_Product_Variation;
-
-				// Get the main product ID and the variation ID.
-				$main_product_id = $swap_in_is_variation ? $swap_in_product->get_parent_id() : $swap_in_product->get_id();
-				$variation_id    = $swap_in_is_variation ? $swap_in_product->get_id() : 0;
-
-				// Update the order item with the new product information.
-				wc_update_order_item_meta( $item_id, '_product_id', $main_product_id );
-				wc_update_order_item_meta( $item_id, '_variation_id', $variation_id );
-
-				// Update the order item name with the name of the new product or variation.
-				$item->set_name( $swap_in_product->get_name() );
-
-				// Add price update if recalculate is checked
-				if ( $this->get_option( 'recalculate_totals' ) ) {
-					$item->set_subtotal( $swap_in_product->get_price() * $item->get_quantity() );
-					$item->set_total( $swap_in_product->get_price() * $item->get_quantity() );
+				// Store the quantity from the original item
+				$quantity = $item->get_quantity();
+			
+				// Remove the old item
+				$subscription->remove_item($item_id);
+			
+				// Add the new product
+				$add_product_args = array();
+			
+				// If we're not recalculating totals, preserve the original prices
+				if ( ! $this->get_option( 'recalculate_totals' ) ) {
+					$add_product_args['subtotal'] = $item->get_subtotal();
+					$add_product_args['total']    = $item->get_total();
 				}
-
-				$item->save();
+			
+				// Add the new product
+				$subscription->add_product( $swap_in_product, $quantity, $add_product_args );
+			
+				// Only recalculate if the option is checked
+				if ( $this->get_option( 'recalculate_totals' ) ) {
+					$subscription->calculate_totals();
+				}
+			
+				$subscription->save();
 
 			}
 		}
