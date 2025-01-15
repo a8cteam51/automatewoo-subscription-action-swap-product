@@ -102,6 +102,13 @@ class Action_Subscription_Swap_Product extends Action {
 
 		$did_update = false;
 
+		// Remove all fee line items before processing
+		if ( $this->get_option( 'recalculate_totals' ) ) {
+			foreach ( $subscription->get_items( 'fee' ) as $item_id => $item ) {
+				$subscription->remove_item( $item_id );
+			}
+		}
+
 		foreach ( $subscription->get_items( array( 'line_item', 'shipping' ) ) as $item_id => $item ) {
 
 			if ( 'shipping' === $item->get_type() ) {
@@ -149,7 +156,16 @@ class Action_Subscription_Swap_Product extends Action {
 
 			// Recalculate and save totals if option is checked
 			if ( $this->get_option( 'recalculate_totals' ) ) {
-				$subscription->calculate_totals();
+				// Clear cached calculated totals
+				$subscription->get_items_to_calculate();
+				
+				// Trigger a full recalculation of taxes and shipping
+				$subscription->calculate_taxes();
+				$subscription->calculate_shipping();
+				
+				// Calculate all totals (with true to force a clean calculation)
+				$subscription->calculate_totals( true );
+				
 				$subscription->save();
 			}
 		}
