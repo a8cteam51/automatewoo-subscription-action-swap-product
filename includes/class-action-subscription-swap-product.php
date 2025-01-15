@@ -36,7 +36,7 @@ class Action_Subscription_Swap_Product extends Action {
 		$recalculate = new Fields\Checkbox();
 		$recalculate->set_name( 'recalculate_totals' );
 		$recalculate->set_title( __( 'Recalculate Totals?', 'automatewoo' ) );
-		$recalculate->set_description( __( 'Update subscription totals to reflect the new product prices', 'automatewoo' ) );
+		$recalculate->set_description( __( 'Update subscription totals, shipping, and taxes to reflect the new product prices. Fee items will remain unchanged.', 'automatewoo' ) );
 		$this->add_field( $recalculate );
 	}
 
@@ -76,7 +76,7 @@ class Action_Subscription_Swap_Product extends Action {
 	protected function load_admin_details() {
 		$this->title       = __( 'Swap Product', 'automatewoo' );
 		$this->group       = __( 'Subscription', 'automatewoo' );
-		$this->description = __( 'Swap one product for another on existing subscription line items. This will not change quantity of line item, or any other characteristics of the subscription. Prices will only be recalculated if the "Recalculate Totals?" checkbox is checked.', 'automatewoo' );
+		$this->description = __( 'Swap one product for another on existing subscription line items. This will not change quantity of line item, or subscription schedule. Prices will only be recalculated if the "Recalculate Totals?" checkbox is checked.', 'automatewoo' );
 	}
 
 	/**
@@ -101,13 +101,6 @@ class Action_Subscription_Swap_Product extends Action {
 		}
 
 		$did_update = false;
-
-		// Remove all fee line items before processing
-		if ( $this->get_option( 'recalculate_totals' ) ) {
-			foreach ( $subscription->get_items( 'fee' ) as $item_id => $item ) {
-				$subscription->remove_item( $item_id );
-			}
-		}
 
 		foreach ( $subscription->get_items( array( 'line_item', 'shipping' ) ) as $item_id => $item ) {
 
@@ -156,8 +149,6 @@ class Action_Subscription_Swap_Product extends Action {
 
 			// Recalculate and save totals if option is checked
 			if ( $this->get_option( 'recalculate_totals' ) ) {
-				// Clear cached calculated totals
-				$subscription->get_items_to_calculate();
 				
 				// Trigger a full recalculation of taxes and shipping
 				$subscription->calculate_taxes();
