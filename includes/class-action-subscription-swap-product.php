@@ -140,7 +140,13 @@ class Action_Subscription_Swap_Product extends Action {
 			$this->add_subscription_note( $subscription, $swap_out_product, $swap_in_product );
 
 			if ( $this->get_option( 'recalculate_totals' ) ) {
+				// Track if Route protection was present
+				$had_route_protection = false;
+    
 				foreach ( $subscription->get_items( 'fee' ) as $item_id => $item ) {
+					if ( 'Route Shipping Protection' === $item->get_name() ) {
+						$had_route_protection = true;
+					}
 					$subscription->remove_item( $item_id );
 				}
 
@@ -221,7 +227,7 @@ class Action_Subscription_Swap_Product extends Action {
 
 				$cart_subtotal = WC()->cart->get_subtotal();
 
-				if ( class_exists( '\Routeapp_Public' ) ) {
+				if ( class_exists( '\Routeapp_Public' ) && $had_route_protection ) {
 					$route = new \Routeapp_Public( 'routeapp', ROUTEAPP_VERSION );
 
 					$cart_total = round( $route->get_cart_subtotal_with_only_shippable_items( WC()->cart ), 2 );
