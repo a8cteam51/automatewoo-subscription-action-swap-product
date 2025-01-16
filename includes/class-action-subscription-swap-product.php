@@ -90,14 +90,16 @@ class Action_Subscription_Swap_Product extends Action {
 		$swap_in_product_id  = $this->get_option( 'product_to_swap_in' );
 
 		if ( ! $subscription || ! $swap_out_product_id || ! $swap_in_product_id ) {
-			return; // Bail early if the subscription or products are not set.
+			$this->workflow->log( 'Missing required data: subscription or product IDs not set' );
+			return;
 		}
 
 		$swap_out_product = wc_get_product( $swap_out_product_id );
 		$swap_in_product  = wc_get_product( $swap_in_product_id );
 
 		if ( ! $swap_out_product || ! $swap_in_product ) {
-			return; // Bail early if product lookups fail.
+			$this->workflow->log( 'Failed to load products for swap' );
+			return;
 		}
 
 		$did_update = false;
@@ -105,74 +107,106 @@ class Action_Subscription_Swap_Product extends Action {
 		foreach ( $subscription->get_items( array( 'line_item', 'shipping' ) ) as $item_id => $item ) {
 
 			if ( 'shipping' === $item->get_type() ) {
-				// Clear the "Items" meta for the shipping line item, since that can sometimes include info from previous product.
 				wc_delete_order_item_meta( $item_id, 'Items', '', true );
 				$item->save();
 				continue;
 			}
 
-			// Check if the item matches the product to swap out (it could be a simple product or a variation).
 			if ( $item->get_product_id() === $swap_out_product->get_id() || $item->get_variation_id() === $swap_out_product->get_id() ) {
 
 				$did_update = true;
 
-				// Store the quantity from the original item
 				$quantity = $item->get_quantity();
-			
-				// Remove the old item
-				$subscription->remove_item($item_id);
-			
-				// Add the new product
+				$subscription->remove_item( $item_id );
+
 				$add_product_args = array();
-			
-				// If we're not recalculating totals, preserve the original prices
+
 				if ( ! $this->get_option( 'recalculate_totals' ) ) {
 					$add_product_args['subtotal'] = $item->get_subtotal();
 					$add_product_args['total']    = $item->get_total();
 				}
-			
-				// Add the new product
+
 				$subscription->add_product( $swap_in_product, $quantity, $add_product_args );
-			
-				// Only recalculate if the option is checked
+
 				if ( $this->get_option( 'recalculate_totals' ) ) {
 					$subscription->calculate_totals();
 				}
-			
-				$subscription->save();
 
+				$subscription->save();
 			}
 		}
 
 		if ( $did_update ) {
 			$this->add_subscription_note( $subscription, $swap_out_product, $swap_in_product );
-		
-			// Recalculate and save totals if option is checked
+
 			if ( $this->get_option( 'recalculate_totals' ) ) {
-				// Remove existing fees
 				foreach ( $subscription->get_items( 'fee' ) as $item_id => $item ) {
 					$subscription->remove_item( $item_id );
 				}
-		
-				// Create temporary cart to calculate fees
-				$cart = new WC_Cart();
-				$cart->empty_cart();
-				
-				// Add subscription items to temporary cart
+
+				if ( ! WC()->cart ) {
+					WC()->frontend_includes();
+					WC()->session = new \WC_Session_Handler();
+					WC()->session->init();
+					WC()->customer = new \WC_Customer( get_current_user_id(), true );
+					WC()->cart     = new \WC_Cart();
+				}
+
+				WC()->cart->empty_cart();
+
 				foreach ( $subscription->get_items() as $item ) {
-					$cart->add_to_cart(
+					$product = $item->get_product();
+					if ( ! $product ) {
+						$this->workflow->log( 'Failed to get product for subscription item' );
+						continue;
+					}
+
+					$variation_id   = $item->get_variation_id();
+					$variation_data = array();
+
+					if ( $variation_id ) {
+						foreach ( $item->get_meta_data() as $meta ) {
+							if ( strpos( $meta->key, 'pa_' ) === 0 ) {
+								$variation_data[ $meta->key ] = $meta->value;
+							}
+						}
+					}
+
+					$cart_item_key = WC()->cart->add_to_cart(
 						$item->get_product_id(),
 						$item->get_quantity(),
-						$item->get_variation_id()
+						$variation_id,
+						$variation_data
 					);
+
+					if ( ! $cart_item_key ) {
+						$this->workflow->log( 'Failed to add item to cart for recalculation' );
+					}
 				}
-				
-				// Calculate fees - this triggers 'woocommerce_cart_calculate_fees'
-				$cart->calculate_fees();
-				
-				// Add any calculated fees to the subscription
-				foreach ( $cart->get_fees() as $fee ) {
-					$item = new WC_Order_Item_Fee();
+
+				WC()->customer->set_shipping_country( $subscription->get_shipping_country() );
+				WC()->customer->set_shipping_state( $subscription->get_shipping_state() );
+				WC()->customer->set_shipping_postcode( $subscription->get_shipping_postcode() );
+				WC()->customer->set_shipping_address_1( $subscription->get_shipping_address_1() );
+				WC()->customer->set_shipping_address_2( $subscription->get_shipping_address_2() );
+				WC()->customer->set_shipping_city( $subscription->get_shipping_city() );
+				WC()->customer->set_shipping_company( $subscription->get_shipping_company() );
+				WC()->customer->set_shipping_first_name( $subscription->get_shipping_first_name() );
+				WC()->customer->set_shipping_last_name( $subscription->get_shipping_last_name() );
+				WC()->customer->set_billing_email( $subscription->get_billing_email() );
+				WC()->customer->set_shipping_phone( $subscription->get_shipping_phone() );
+
+				WC()->cart->calculate_totals();
+
+				$flavorcloud = \Novos_Extended\Integrations\FlavorCloud::init();
+				$result      = $flavorcloud->add_shipping_fees( WC()->cart );
+
+				if ( is_wp_error( $result ) ) {
+					$this->workflow->log( 'FlavorCloud API error: ' . $result->get_error_message() );
+				}
+
+				foreach ( WC()->cart->get_fees() as $fee ) {
+					$item = new \WC_Order_Item_Fee();
 					$item->set_props(
 						array(
 							'name'      => $fee->name,
@@ -184,16 +218,60 @@ class Action_Subscription_Swap_Product extends Action {
 					);
 					$subscription->add_item( $item );
 				}
-				
-				// Recalculate everything
-				$subscription->calculate_taxes();
-				$subscription->calculate_shipping();
-				$subscription->calculate_totals(true);
-				
+
+				$cart_subtotal = WC()->cart->get_subtotal();
+
+				if ( class_exists( '\Routeapp_Public' ) ) {
+					$route = new \Routeapp_Public( 'routeapp', ROUTEAPP_VERSION );
+
+					$cart_total = round( $route->get_cart_subtotal_with_only_shippable_items( WC()->cart ), 2 );
+					$cart_ref   = WC()->cart->get_cart_hash();
+					$currency   = get_woocommerce_currency();
+					$cart_items = $route->get_cart_shippable_items( WC()->cart );
+
+					try {
+						$route_insurance_quote = $route->routeapp_get_quote_from_api( $cart_ref, $cart_total, $currency, $cart_items );
+					} catch ( \Exception $e ) {
+						$this->workflow->log( 'Route API error: ' . $e->getMessage() );
+					}
+
+					if ( isset( $route_insurance_quote->premium->amount ) &&
+						isset( $route_insurance_quote->payment_responsible->type ) &&
+						'paid_by_customer' === $route_insurance_quote->payment_responsible->type ) {
+
+						$protection_amount = $route_insurance_quote->premium->amount;
+
+						if ( $protection_amount > 0 ) {
+							$item = new \WC_Order_Item_Fee();
+							$item->set_props(
+								array(
+									'name'      => $route->routeapp_get_insurance_label(),
+									'tax_class' => $route->routeapp_get_taxable_class(),
+									'amount'    => $protection_amount,
+									'total'     => $protection_amount,
+									'total_tax' => 0,
+								)
+							);
+							$subscription->add_item( $item );
+
+							if ( class_exists( 'Automattic\WooCommerce\Utilities\OrderUtil' )
+								&& \Automattic\WooCommerce\Utilities\OrderUtil::custom_orders_table_usage_is_enabled() ) {
+								$subscription->update_meta_data( '_routeapp_route_charge', $protection_amount );
+								$subscription->update_meta_data( '_routeapp_route_protection', true );
+							} else {
+								update_post_meta( $subscription->get_id(), '_routeapp_route_charge', $protection_amount );
+								update_post_meta( $subscription->get_id(), '_routeapp_route_protection', true );
+							}
+						}
+					}
+				}
+
+				$subscription->calculate_totals( true );
 				$subscription->save();
+
+				WC()->cart->empty_cart();
 			}
 		}
-
 	}
 
 	/**
