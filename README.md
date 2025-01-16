@@ -5,6 +5,8 @@
 
 Extends the functionality of AutomateWoo with a custom action to swap products on subscriptions. 
 
+THIS BRANCH IS CUSTOMIZED FOR NOVOS TO SUPPORT FLAVORCLOUD AND ROUTE.COM CALCULATIONS
+
 ## Usage
 
 This action is intended to be used on manual workflows to swap out products on subscriptions in a store, on a 1:1 basis. So, when looking at the line items of an existing subscription, `Product A x3` becomes `Product B x3`. 

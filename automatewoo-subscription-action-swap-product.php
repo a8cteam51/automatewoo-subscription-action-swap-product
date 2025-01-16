@@ -3,7 +3,7 @@
  * Plugin Name: AutomateWoo Subscription Action - Swap Product
  * Plugin URI:  https://github.com/a8cteam51/automatewoo-subscription-action-swap-product
  * Description: Extends the functionality of AutomateWoo with a custom action which allows you to add a product to an order as a line item.
- * Version:     1.0.0
+ * Version:     1.1.0 - NOVOS CUSTOM
  * Author:      WP Special Projects
  * Author URI:  https://wpspecialprojects.wordpress.com/
  * License:     GPL v2 or later
