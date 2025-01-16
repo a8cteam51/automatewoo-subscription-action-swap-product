@@ -5,7 +5,7 @@
 
 Extends the functionality of AutomateWoo with a custom action to swap products on subscriptions. 
 
-THIS BRANCH IS CUSTOMIZED FOR NOVOS TO SUPPORT FLAVORCLOUD AND ROUTE.COM CALCULATIONS
+THIS BRANCH IS CUSTOMIZED TO SUPPORT FLAVORCLOUD AND ROUTE.COM CALCULATIONS
 
 ## Usage
 
