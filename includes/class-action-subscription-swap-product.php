@@ -36,7 +36,7 @@ class Action_Subscription_Swap_Product extends Action {
 		$recalculate = new Fields\Checkbox();
 		$recalculate->set_name( 'recalculate_totals' );
 		$recalculate->set_title( __( 'Recalculate Totals?', 'automatewoo' ) );
-		$recalculate->set_description( __( 'Update subscription totals to reflect the new product prices', 'automatewoo' ) );
+		$recalculate->set_description( __( 'Update subscription totals, shipping, taxes, and fees to reflect the new product prices.', 'automatewoo' ) );
 		$this->add_field( $recalculate );
 	}
 
@@ -76,7 +76,7 @@ class Action_Subscription_Swap_Product extends Action {
 	protected function load_admin_details() {
 		$this->title       = __( 'Swap Product', 'automatewoo' );
 		$this->group       = __( 'Subscription', 'automatewoo' );
-		$this->description = __( 'Swap one product for another on existing subscription line items. This will not change quantity of line item, or any other characteristics of the subscription. Prices will only be recalculated if the "Recalculate Totals?" checkbox is checked.', 'automatewoo' );
+		$this->description = __( 'Swap one product for another on existing subscription line items. This will not change quantity of line item, or subscription schedule. Prices will only be recalculated if the "Recalculate Totals?" checkbox is checked.', 'automatewoo' );
 	}
 
 	/**
@@ -146,10 +146,50 @@ class Action_Subscription_Swap_Product extends Action {
 
 		if ( $did_update ) {
 			$this->add_subscription_note( $subscription, $swap_out_product, $swap_in_product );
-
+		
 			// Recalculate and save totals if option is checked
 			if ( $this->get_option( 'recalculate_totals' ) ) {
-				$subscription->calculate_totals();
+				// Remove existing fees
+				foreach ( $subscription->get_items( 'fee' ) as $item_id => $item ) {
+					$subscription->remove_item( $item_id );
+				}
+		
+				// Create temporary cart to calculate fees
+				$cart = new WC_Cart();
+				$cart->empty_cart();
+				
+				// Add subscription items to temporary cart
+				foreach ( $subscription->get_items() as $item ) {
+					$cart->add_to_cart(
+						$item->get_product_id(),
+						$item->get_quantity(),
+						$item->get_variation_id()
+					);
+				}
+				
+				// Calculate fees - this triggers 'woocommerce_cart_calculate_fees'
+				$cart->calculate_fees();
+				
+				// Add any calculated fees to the subscription
+				foreach ( $cart->get_fees() as $fee ) {
+					$item = new WC_Order_Item_Fee();
+					$item->set_props(
+						array(
+							'name'      => $fee->name,
+							'tax_class' => $fee->tax_class,
+							'amount'    => $fee->amount,
+							'total'     => $fee->total,
+							'total_tax' => $fee->tax,
+						)
+					);
+					$subscription->add_item( $item );
+				}
+				
+				// Recalculate everything
+				$subscription->calculate_taxes();
+				$subscription->calculate_shipping();
+				$subscription->calculate_totals(true);
+				
 				$subscription->save();
 			}
 		}
